@@ -24,11 +24,25 @@ void fillMatrix(std::vector<std::vector<int>>& matrix)
 	}
 }
 
+void printMatrix(std::vector<std::vector<int>>& matrix)
+{
+	for (size_t i = 0; i < matrix.size(); i++)
+	{
+		for (size_t j = 0; j < matrix.size(); j++)
+		{
+			std::cout << matrix[i][j] << "\t";
+		}
+		std::cout << std::endl;
+	}
+}
+
 void calculateRow(std::vector<std::vector<int>>& matrix, int rowNum)
 {
 	int sum = 0;
 	for (size_t i = 0; i < matrix.size(); i++)
 	{
+		if (i == rowNum) continue;
+
 		if (matrix[rowNum][i] >= 10)
 			sum += matrix[rowNum][i];
 	}
@@ -46,10 +60,16 @@ void defaultSolution(std::vector<std::vector<int>>& matrix)
 
 	auto end = high_resolution_clock::now();
 	auto elapsed = duration_cast<nanoseconds>(end - begin);
-	std::printf("Payload Time: %.3f seconds.\n", elapsed.count() * 1e-9);
+	std::cout << "Default solution time: " << elapsed.count() * 1e-9 
+		<< "for matrix size " << matrix.size() << "x" << matrix.size() << std::endl;
 }
 
 int main()
 {
+	std::vector<std::vector<int>> matrix(10, std::vector<int>(10, 0));
+	fillMatrix(matrix);
+	defaultSolution(matrix);
+	printMatrix(matrix);
+
 	return 0;
 }
