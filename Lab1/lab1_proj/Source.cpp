@@ -3,6 +3,8 @@
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <string>
+#include <iomanip>
 
 using std::chrono::nanoseconds;
 using std::chrono::duration_cast;
@@ -32,7 +34,10 @@ void printMatrix(std::vector<std::vector<int>>& matrix)
 	{
 		for (int j = 0; j < matrix.size(); j++)
 		{
-			std::cout << matrix[i][j] << "\t";
+			if (i == j)
+				std::cout << "\033[32m" << matrix[i][j] << "\033[0m" << "\t";
+			else
+				std::cout << matrix[i][j] << "\t";
 		}
 		std::cout << std::endl;
 	}
@@ -55,7 +60,7 @@ void calculateRow(std::vector<std::vector<int>>& matrix, int rowNum)
 
 //рішення без паралелізації
 
-void defaultSolution(std::vector<std::vector<int>>& matrix)
+double defaultSolution(std::vector<std::vector<int>>& matrix)
 {
 	auto begin = high_resolution_clock::now();
 
@@ -66,8 +71,8 @@ void defaultSolution(std::vector<std::vector<int>>& matrix)
 
 	auto end = high_resolution_clock::now();
 	auto elapsed = duration_cast<nanoseconds>(end - begin);
-	std::cout << "Default solution time: " << elapsed.count() * 1e-9 
-		<< " for matrix size " << matrix.size() << "x" << matrix.size() << std::endl;
+
+	return elapsed.count() * 1e-9;
 }
 
 //рішення з паралелізацією
@@ -85,6 +90,7 @@ double parallelSolution(std::vector<std::vector<int>>& matrix, int threadsNum, p
 	if (threadsNum > matrix.size()) threadsNum = matrix.size();
 
 	std::vector<std::thread> threads;
+	threads.reserve(threadsNum);
 	int rowsPerThread = matrix.size() / threadsNum;
 
 	for (int i = 0; i < threadsNum; i++)
@@ -120,12 +126,57 @@ double parallelSolution(std::vector<std::vector<int>>& matrix, int threadsNum, p
 	return elapsed.count() * 1e-9;
 }
 
+//тестові сценарії
+void testSolutions(const std::vector<int>& matrixSizes, const std::vector<int>& threadsNums)
+{
+	std::vector<parallelismType> types =
+	{
+		parallelismType::Block,
+		parallelismType::Cyclic
+	};
+
+	for (int size : matrixSizes)
+	{
+		std::cout << "#####\tMatrix size: " << size << "x" << size << "\t#####" << std::endl << std::endl;
+
+		//заміряємо час звичайного рішення
+		std::vector<std::vector<int>> matrixDefSol(size, std::vector<int>(size));
+		fillMatrix(matrixDefSol);
+		double defSolTime = defaultSolution(matrixDefSol);
+
+		std::cout << "-------------------------------------" << std::endl;
+		std::cout << "Default Solution Time: " << std::fixed << std::setprecision(6) << defSolTime << " s" << std::endl;
+		std::cout << "-------------------------------------" << std::endl << std::endl;
+		std::cout << "Parallel Solution: " << std::endl << std::endl;
+
+		for (parallelismType type : types)
+		{
+			std::string strat = (type == parallelismType::Block) ? "Block" : "Cyclic";
+			std::cout << "-----\tStrategy name: " << strat << "\t-----" << std::endl;
+			std::cout << std::setw(10) << "Threads" << std::setw(20) << "Time (s)" << std::endl;
+
+			for (int threads : threadsNums)
+			{
+				//заміряємо час паралельного рішення для всіх комбінацій
+				std::vector<std::vector<int>> matrixParSol(size, std::vector<int>(size));
+				fillMatrix(matrixParSol);
+
+				double parSolTime = parallelSolution(matrixParSol, threads, type);
+
+				std::cout << std::setw(10) << threads << std::setw(20) << parSolTime << std::endl;
+			}
+			std::cout << std::endl;
+		}
+		std::cout << "#####################################" << std::endl << std::endl;
+	}
+}
+
 int main()
 {
 	int physicalCores = 10;
 	int logicalCores = 16;
 
-	std::vector<int> threadsNum =
+	std::vector<int> threadsNums =
 	{
 		static_cast<int>(physicalCores / 2),
 		physicalCores,
@@ -144,18 +195,15 @@ int main()
 		2500,
 		5000,
 		10000,
-		25000,
-		50000
+		25000
 	};
 
-	std::vector<std::vector<int>> matrix(10, std::vector<int>(10, 0));
+	testSolutions(matrixSizes, threadsNums);
+
+	/*std::vector<std::vector<int>> matrix(10, std::vector<int>(10, 0));
 	fillMatrix(matrix);
 	defaultSolution(matrix);
-	std::cout << std::endl;
-	printMatrix(matrix);
-
-	std::cout << std::endl;
-	std::cout << parallelSolution(matrix, threadsNum[1], parallelismType::Cyclic);;
+	printMatrix(matrix);*/
 
 	return 0;
 }
