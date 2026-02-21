@@ -70,6 +70,11 @@ double defaultSolution(std::vector<std::vector<int>>& matrix)
 	auto end = high_resolution_clock::now();
 	auto elapsed = duration_cast<nanoseconds>(end - begin);
 
+	//запобігаємо оптимізації
+	int sum = 0;
+	for (int i = 0; i < matrix.size(); i++) sum += matrix[i][i];
+	volatile int var = sum;
+
 	return elapsed.count() * 1e-9;
 }
 
@@ -132,6 +137,11 @@ timeResults parallelSolution(std::vector<std::vector<int>>& matrix, int threadsN
 	auto elapsedTotal = duration_cast<nanoseconds>(endTotal - beginTotal);
 	auto elapsedThreads = duration_cast<nanoseconds>(endThreads - beginThreads);
 
+	//запобігаємо оптимізації
+	int sum = 0;
+	for (int i = 0; i < matrix.size(); i++) sum += matrix[i][i];
+	volatile int var = sum;
+
 	return { elapsedTotal.count() * 1e-9, elapsedThreads.count() * 1e-9 };
 }
 
@@ -143,6 +153,11 @@ void testSolutions(const std::vector<int>& matrixSizes, const std::vector<int>& 
 		parallelismType::Block,
 		parallelismType::Cyclic
 	};
+
+	//холодний старт
+	std::vector<std::vector<int>> coldStartMatrix(100, std::vector<int>(100, 1));
+	defaultSolution(coldStartMatrix);
+	parallelSolution(coldStartMatrix, 4, parallelismType::Block);
 
 	for (int size : matrixSizes)
 	{
