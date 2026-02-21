@@ -83,15 +83,23 @@ enum class parallelismType //тип розподілу рядків між по�
 	Cyclic
 };
 
-double parallelSolution(std::vector<std::vector<int>>& matrix, int threadsNum, parallelismType type)
+struct timeResults
 {
-	auto begin = high_resolution_clock::now();
+	double totalTime;
+	double threadsTime;
+};
+
+timeResults parallelSolution(std::vector<std::vector<int>>& matrix, int threadsNum, parallelismType type)
+{
+	auto beginTotal = high_resolution_clock::now();
 
 	if (threadsNum > matrix.size()) threadsNum = matrix.size();
 
 	std::vector<std::thread> threads;
 	threads.reserve(threadsNum);
 	int rowsPerThread = matrix.size() / threadsNum;
+
+	auto beginThreads = high_resolution_clock::now();
 
 	for (int i = 0; i < threadsNum; i++)
 	{
@@ -116,14 +124,17 @@ double parallelSolution(std::vector<std::vector<int>>& matrix, int threadsNum, p
 		}
 	}
 
+	auto endThreads = high_resolution_clock::now();
+
 	for (std::thread& thread : threads) {
 		if (thread.joinable()) thread.join();
 	}
 
-	auto end = high_resolution_clock::now();
-	auto elapsed = duration_cast<nanoseconds>(end - begin);
+	auto endTotal = high_resolution_clock::now();
+	auto elapsedTotal = duration_cast<nanoseconds>(endTotal - beginTotal);
+	auto elapsedThreads = duration_cast<nanoseconds>(endThreads - beginThreads);
 
-	return elapsed.count() * 1e-9;
+	return { elapsedTotal.count() * 1e-9, elapsedThreads.count() * 1e-9 };
 }
 
 //тестові сценарії
@@ -153,7 +164,7 @@ void testSolutions(const std::vector<int>& matrixSizes, const std::vector<int>& 
 		{
 			std::string strat = (type == parallelismType::Block) ? "Block" : "Cyclic";
 			std::cout << "-----\tStrategy name: " << strat << "\t-----" << std::endl;
-			std::cout << std::setw(10) << "Threads" << std::setw(20) << "Time (s)" << std::endl;
+			std::cout << std::left << std::setw(12) << "Threads" << std::setw(20) << "Total Time (s)" << std::setw(25) << "Threads Creation Time (s)" << std::endl;
 
 			for (int threads : threadsNums)
 			{
@@ -161,9 +172,10 @@ void testSolutions(const std::vector<int>& matrixSizes, const std::vector<int>& 
 				std::vector<std::vector<int>> matrixParSol(size, std::vector<int>(size));
 				fillMatrix(matrixParSol);
 
-				double parSolTime = parallelSolution(matrixParSol, threads, type);
+				timeResults parSolTime = parallelSolution(matrixParSol, threads, type);
 
-				std::cout << std::setw(10) << threads << std::setw(20) << parSolTime << std::endl;
+				std::cout << std::left << std::setw(12) << threads << std::setw(20) << std::fixed << std::setprecision(6) << 
+					parSolTime.totalTime << std::setw(25) << std::fixed << std::setprecision(6) << parSolTime.threadsTime << std::endl;
 			}
 			std::cout << std::endl;
 		}
