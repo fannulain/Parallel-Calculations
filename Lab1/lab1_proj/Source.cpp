@@ -50,12 +50,10 @@ void calculateRow(std::vector<std::vector<int>>& matrix, int rowNum)
 	int sum = 0;
 	for (int i = 0; i < matrix.size(); i++)
 	{
-		if (i == rowNum) continue;
-
 		if (matrix[rowNum][i] >= 10)
 			sum += matrix[rowNum][i];
 	}
-	matrix[rowNum][rowNum] = sum;
+	matrix[rowNum][rowNum] = sum - matrix[rowNum][rowNum]; //віднімаємо діагональний елемент для чистоти перевірки
 }
 
 //рішення без паралелізації
@@ -91,7 +89,7 @@ struct timeResults
 
 timeResults parallelSolution(std::vector<std::vector<int>>& matrix, int threadsNum, parallelismType type)
 {
-	auto beginTotal = high_resolution_clock::now();
+	auto beginTotal = high_resolution_clock::now(); //загальний час
 
 	if (threadsNum > matrix.size()) threadsNum = matrix.size();
 
@@ -99,7 +97,7 @@ timeResults parallelSolution(std::vector<std::vector<int>>& matrix, int threadsN
 	threads.reserve(threadsNum);
 	int rowsPerThread = matrix.size() / threadsNum;
 
-	auto beginThreads = high_resolution_clock::now();
+	auto beginThreads = high_resolution_clock::now(); //заміряємо час створення потоків
 
 	for (int i = 0; i < threadsNum; i++)
 	{
