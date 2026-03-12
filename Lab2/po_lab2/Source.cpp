@@ -8,6 +8,10 @@
 #include <string>
 #include <iomanip>
 
+using std::chrono::nanoseconds;
+using std::chrono::duration_cast;
+using std::chrono::high_resolution_clock;
+
 unsigned long long rand_seed = 1;
 
 void fillVector(std::vector<int>& arr)
@@ -34,10 +38,13 @@ struct Result
 {
 	int count;
 	int min;
+	double time;
 };
 
 Result defaultSolution(const std::vector<int>& arr)
 {
+	auto beginClock = high_resolution_clock::now();
+
 	int count = 0;
 	int min = INT_MAX;
 
@@ -50,7 +57,10 @@ Result defaultSolution(const std::vector<int>& arr)
 		}
 	}
 
-	return { count, min };
+	auto endClock = high_resolution_clock::now();
+	auto elapsed = duration_cast<nanoseconds>(endClock - beginClock);
+
+	return { count, min, elapsed.count() * 1e-9 };
 }
 
 void processBlockMutexUnoptimized(const std::vector<int>& arr, int start, int end,
@@ -149,6 +159,8 @@ enum class SyncType
 
 Result parallelSolution(const std::vector<int>& arr, int threadsNum, SyncType syncType)
 {
+	auto beginClock = high_resolution_clock::now();
+
 	int mutexCount = 0;
 	int mutexMin = INT_MAX;
 	std::mutex mtx;
@@ -156,7 +168,8 @@ Result parallelSolution(const std::vector<int>& arr, int threadsNum, SyncType sy
 	std::atomic<int> casCount{ 0 };
 	std::atomic<int> casMin{ INT_MAX };
 
-	std::vector<std::thread> threads(threadsNum);
+	std::vector<std::thread> threads;
+	threads.reserve(threadsNum);
 
 	int elemsPerThread = arr.size() / threadsNum;
 	
@@ -188,10 +201,23 @@ Result parallelSolution(const std::vector<int>& arr, int threadsNum, SyncType sy
 		}
 	}
 
-	for (int i = 0; i < threadsNum; i++)
+	for (std::thread& thread : threads)
 	{
-		if (threads[i].joinable()) threads[i].join();
+		if (thread.joinable()) thread.join();
 	}
+
+	auto endClock = high_resolution_clock::now();
+	auto elapsed = duration_cast<nanoseconds>(endClock - beginClock);
+
+	if (syncType == SyncType::MutexUnoptimized || syncType == SyncType::MutexOptimized)
+		return Result{ mutexCount, mutexMin, elapsed.count() * 1e-9 };
+	else
+		return Result{ casCount.load(), casMin.load(), elapsed.count() * 1e-9 };
+}
+
+void testSolutions(const std::vector<int>& vectorSizes, const std::vector<int>& threadsNums)
+{
+
 }
 
 int main()
