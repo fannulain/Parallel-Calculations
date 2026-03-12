@@ -217,17 +217,115 @@ Result parallelSolution(const std::vector<int>& arr, int threadsNum, SyncType sy
 
 void testSolutions(const std::vector<int>& vectorSizes, const std::vector<int>& threadsNums)
 {
+	std::vector<SyncType> syncTypes =
+	{
+		SyncType::MutexUnoptimized,
+		SyncType::MutexOptimized,
+		SyncType::CASUnoptimized,
+		SyncType::CASOptimized
+	};
 
+	std::vector<int> coldStartVec(100000);
+	fillVector(coldStartVec);
+	defaultSolution(coldStartVec);
+	parallelSolution(coldStartVec, 4, SyncType::MutexOptimized);
+
+	for (int size : vectorSizes)
+	{
+		std::cout << "==============================================================" << std::endl;
+		std::cout << "#####\tVector size: " << size << " elements\t#####" << std::endl;
+		std::cout << "==============================================================" << std::endl << std::endl;
+
+		std::vector<int> arr(size);
+		fillVector(arr);
+
+		Result defRes = defaultSolution(arr);
+
+		std::cout << "--------------------------------------------------------------" << std::endl;
+		std::cout << "Default Solution Time: " << std::fixed << std::setprecision(6) << defRes.time << " s" << std::endl;
+		std::cout << "Result -> Count: " << defRes.count << " | Min: " << defRes.min << std::endl;
+		std::cout << "--------------------------------------------------------------" << std::endl << std::endl;
+
+		for (SyncType type : syncTypes)
+		{
+			std::string stratName;
+			switch (type)
+			{
+				case SyncType::MutexUnoptimized: 
+					stratName = "Mutex Unoptimized"; 
+					break;
+				case SyncType::MutexOptimized:   
+					stratName = "Mutex Optimized"; 
+					break;
+				case SyncType::CASUnoptimized:   
+					stratName = "CAS Unoptimized"; 
+					break;
+				case SyncType::CASOptimized:     
+					stratName = "CAS Optimized"; 
+					break;
+			}
+
+			std::cout << "-----\tStrategy name: " << stratName << "\t-----" << std::endl;
+			std::cout << std::left << std::setw(12) << "Threads"
+				<< std::setw(20) << "Total Time (s)"
+				<< std::setw(15) << "Count"
+				<< std::setw(15) << "Min" << std::endl;
+
+			for (int threads : threadsNums)
+			{
+				Result parRes = parallelSolution(arr, threads, type);
+
+				std::cout << std::left << std::setw(12) << threads
+					<< std::setw(20) << std::fixed << std::setprecision(6) << parRes.time
+					<< std::setw(15) << parRes.count
+					<< std::setw(15) << parRes.min;
+
+				if (parRes.count != defRes.count || parRes.min != defRes.min)
+				{
+					std::cout << "\t\x1b[31mIncorrect results!\x1b[0m";
+				}
+				std::cout << std::endl;
+			}
+			std::cout << std::endl;
+		}
+	}
 }
 
 int main()
 {
-	std::vector<int> arr(10, 0);
+	int physicalCores = 10;
+	int logicalCores = 16;
+
+	std::vector<int> threadsNums =
+	{
+		static_cast<int>(physicalCores / 2),
+		physicalCores,
+		logicalCores,
+		logicalCores * 2,
+		logicalCores * 4,
+		logicalCores * 8,
+		logicalCores * 16
+	};
+
+	std::vector<int> vectorSizes =
+	{
+		100000,
+		500000,
+		1000000,
+		5000000,
+		10000000,
+		50000000,
+		100000000
+	};
+
+	testSolutions(vectorSizes, threadsNums);
+
+	/*std::vector<int> arr(10, 0);
 	fillVector(arr);
 	printVector(arr);
 	Result res = defaultSolution(arr);
 
-	std::cout << res.count << "\t" << res.min;
+	std::cout << res.count << "\t" << res.min;*/
 
 	return 0;
 }
