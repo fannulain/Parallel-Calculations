@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <iomanip>
+#include <fstream>
 
 using std::chrono::nanoseconds;
 using std::chrono::duration_cast;
@@ -225,6 +226,16 @@ void testSolutions(const std::vector<int>& vectorSizes, const std::vector<int>& 
 		SyncType::CASOptimized
 	};
 
+	std::ofstream outFile("test_results.csv");
+	if (outFile.is_open())
+	{
+		outFile << "Vector Size,Strategy,Threads,Total Time (s),Count,Min,Status\n";
+	}
+	else
+	{
+		std::cerr << "\x1b[31mUnable to open file!\x1b[0m" << std::endl;
+	}
+
 	std::vector<int> coldStartVec(100000);
 	fillVector(coldStartVec);
 	defaultSolution(coldStartVec);
@@ -245,6 +256,12 @@ void testSolutions(const std::vector<int>& vectorSizes, const std::vector<int>& 
 		std::cout << "Default Solution Time: " << std::fixed << std::setprecision(6) << defRes.time << " s" << std::endl;
 		std::cout << "Result -> Count: " << defRes.count << " | Min: " << defRes.min << std::endl;
 		std::cout << "--------------------------------------------------------------" << std::endl << std::endl;
+
+		if (outFile.is_open())
+		{
+			outFile << size << ",Default (1 Thread),1," << std::fixed << std::setprecision(6)
+				<< defRes.time << "," << defRes.count << "," << defRes.min << ",OK\n";
+		}
 
 		for (SyncType type : syncTypes)
 		{
@@ -275,19 +292,32 @@ void testSolutions(const std::vector<int>& vectorSizes, const std::vector<int>& 
 			{
 				Result parRes = parallelSolution(arr, threads, type);
 
+				bool isResCorrect = (parRes.count == defRes.count && parRes.min == defRes.min);
+				std::string parResStatus = isResCorrect ? "OK" : "ERROR";
+
 				std::cout << std::left << std::setw(12) << threads
 					<< std::setw(20) << std::fixed << std::setprecision(6) << parRes.time
 					<< std::setw(15) << parRes.count
 					<< std::setw(15) << parRes.min;
 
-				if (parRes.count != defRes.count || parRes.min != defRes.min)
-				{
-					std::cout << "\t\x1b[31mIncorrect results!\x1b[0m";
-				}
+				if (!isResCorrect) std::cout << "\x1b[31m" << parResStatus << "\x1b[0m";
 				std::cout << std::endl;
+
+				if (outFile.is_open())
+				{
+					outFile << size << "," << stratName << "," << threads << ","
+						<< std::fixed << std::setprecision(6) << parRes.time << ","
+						<< parRes.count << "," << parRes.min << "," << parResStatus << "\n";
+				}
 			}
 			std::cout << std::endl;
 		}
+	}
+
+	if (outFile.is_open())
+	{
+		outFile.close();
+		std::cout << "\n\x1b[32mData successfully written to test_results.csv\x1b[0m" << std::endl;
 	}
 }
 
