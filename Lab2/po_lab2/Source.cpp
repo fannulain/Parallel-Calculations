@@ -53,6 +53,54 @@ Result defaultSolution(std::vector<int>& arr)
 	return { count, min };
 }
 
+void processBlockMutexUnoptimized(std::vector<int>& arr, int start, int end, 
+	int& count, int& min, std::mutex& mtx)
+{
+	for (int i = start; i < end; i++)
+	{
+		if (arr[i] < -42)
+		{
+			std::lock_guard<std::mutex> lock(mtx);
+
+			count++;
+			min = arr[i] < min ? arr[i] : min;
+		}
+	}
+}
+
+void processBlockMutexOptimized(std::vector<int>& arr, int start, int end,
+	int& count, int& min, std::mutex& mtx)
+{
+	int local_count = count;
+	int local_min = min;
+
+	for (int i = start; i < end; i++)
+	{
+		if (arr[i] < -42)
+		{
+			local_count++;
+			local_min = arr[i] < local_min ? arr[i] : local_min;
+		}
+	}
+
+	std::lock_guard<std::mutex> lock(mtx);
+
+	count += local_count;
+	if (local_min < min) min = local_min;
+}
+
+void processBlockCASUnoptimized(std::vector<int>& arr, int start, int end,
+	int& count, int& min, std::mutex& mtx)
+{
+
+}
+
+void processBlockCASOptimized(std::vector<int>& arr, int start, int end,
+	int& count, int& min, std::mutex& mtx)
+{
+
+}
+
 int main()
 {
 	std::vector<int> arr(10, 0);
