@@ -268,17 +268,17 @@ void testSolutions(const std::vector<int>& vectorSizes, const std::vector<int>& 
 			std::string stratName;
 			switch (type)
 			{
-				case SyncType::MutexUnoptimized: 
-					stratName = "Mutex Unoptimized"; 
+				case SyncType::MutexUnoptimized:
+					stratName = "Mutex Unoptimized";
 					break;
-				case SyncType::MutexOptimized:   
-					stratName = "Mutex Optimized"; 
+				case SyncType::MutexOptimized:
+					stratName = "Mutex Optimized";
 					break;
-				case SyncType::CASUnoptimized:   
-					stratName = "CAS Unoptimized"; 
+				case SyncType::CASUnoptimized:
+					stratName = "CAS Unoptimized";
 					break;
-				case SyncType::CASOptimized:     
-					stratName = "CAS Optimized"; 
+				case SyncType::CASOptimized:
+					stratName = "CAS Optimized";
 					break;
 			}
 
