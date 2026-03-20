@@ -4,7 +4,7 @@ ThreadPool::ThreadPool(int queuesNum)
 {
 	for (int i = 0; i < queuesNum; i++)
 	{
-		queues.push_back(std::make_unique<TaskQueue>());
+		queues.push_back(std::make_unique<TaskQueue<Task>>());
 	}
 
 	for (int i = 0; i < queuesNum; i++)
@@ -15,7 +15,7 @@ ThreadPool::ThreadPool(int queuesNum)
 
 ThreadPool::~ThreadPool()
 {
-	if (!stopFlag)
+	if (!stopFlag.load())
 		stop(true);
 }
 
@@ -26,7 +26,17 @@ void ThreadPool::workerLoop(int queueIndex)
 	while (queues[queueIndex]->pop(task))
 	{
 		if (task.func)
+		{
+			auto startTimer = std::chrono::high_resolution_clock::now();
+
 			task.func();
+
+			auto endTimer = std::chrono::high_resolution_clock::now();
+			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTimer - startTimer).count();
+		
+			totalProcessingTimeMs.fetch_add(duration);
+			tasksCompleted.fetch_add(1);
+		}
 	}
 }
 
@@ -44,22 +54,14 @@ int ThreadPool::getLeastLoadedQueue() const
 			bestQueueIndex = i;
 		}
 	}
-}
-
-void ThreadPool::addTask(const Task& task)
-{
-	if (stopFlag || queues.empty()) return;
-
-	int bestQueueIndex = getLeastLoadedQueue();
-	queues[bestQueueIndex]->push(task);
+	return bestQueueIndex;
 }
 
 void ThreadPool::stop(bool finishTasks)
 {
-	if (stopFlag) return;
-	stopFlag = true;
+	if (stopFlag.exchange(true)) return;
 
-	for (std::unique_ptr<TaskQueue>& queue : queues)
+	for (std::unique_ptr<TaskQueue<Task>>& queue : queues)
 	{
 		queue->stop(!finishTasks);
 	}
@@ -73,10 +75,9 @@ void ThreadPool::stop(bool finishTasks)
 
 void ThreadPool::pause()
 {
-	if (stopFlag || pauseFlag) return;
-	pauseFlag = true;
+	if (stopFlag.load() || pauseFlag.exchange(true)) return;
 
-	for (std::unique_ptr<TaskQueue>& queue : queues)
+	for (std::unique_ptr<TaskQueue<Task>>& queue : queues)
 	{
 		queue->pause();
 	}
@@ -84,10 +85,9 @@ void ThreadPool::pause()
 
 void ThreadPool::resume()
 {
-	if (stopFlag || !pauseFlag) return;
-	pauseFlag = false;
+	if (stopFlag.load() || !pauseFlag.exchange(false)) return;
 
-	for (std::unique_ptr<TaskQueue>& queue : queues)
+	for (std::unique_ptr<TaskQueue<Task>>& queue : queues)
 	{
 		queue->resume();
 	}
@@ -95,19 +95,19 @@ void ThreadPool::resume()
 
 bool ThreadPool::isWorking() const
 {
-	return !stopFlag;
+	return !stopFlag.load();
 }
 
 bool ThreadPool::isPaused() const
 {
-	return pauseFlag;
+	return pauseFlag.load();
 }
 
 std::vector<int> ThreadPool::getQueueSizes() const
 {
 	std::vector<int> sizes;
 	sizes.reserve(queues.size());
-	for (const std::unique_ptr<TaskQueue>& queue : queues)
+	for (const std::unique_ptr<TaskQueue<Task>>& queue : queues)
 	{
 		sizes.push_back(queue->size());
 	}
@@ -118,9 +118,27 @@ std::vector<int> ThreadPool::getQueueLoadTimes() const
 {
 	std::vector<int> loadTimes;
 	loadTimes.reserve(queues.size());
-	for (const std::unique_ptr<TaskQueue>& queue : queues)
+	for (const std::unique_ptr<TaskQueue<Task>>& queue : queues)
 	{
 		loadTimes.push_back(queue->getTotalTime());
 	}
 	return loadTimes;
+}
+
+int ThreadPool::getTasksSubmitted() const 
+{ 
+	return tasksSubmitted.load(); 
+}
+
+int ThreadPool::getTasksCompleted() const
+{
+	return tasksCompleted.load();
+}
+
+double ThreadPool::getAverageTaskExecutionTimeMs() const
+{
+	int completed = tasksCompleted.load();
+	if (completed == 0) return 0.0;
+
+	return static_cast<double>(totalProcessingTimeMs.load()) / completed;
 }
