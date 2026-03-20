@@ -61,6 +61,7 @@ void TaskQueue<TaskType>::push(TaskArg&& task)
 {
 	{
 		std::lock_guard<std::mutex> lock(mtx);
+		if (stopFlag) return;
 		innerQueue.push(std::forward<TaskArg>(task));
 	}
 	condVar.notify_all();
@@ -72,6 +73,7 @@ void TaskQueue<TaskType>::emplace(Args&&... args)
 {
 	{
 		std::lock_guard<std::mutex> lock(mtx);
+		if (stopFlag) return;
 		innerQueue.emplace(std::forward<Args>(args)...);
 	}
 	condVar.notify_all();
@@ -112,6 +114,7 @@ void TaskQueue<TaskType>::stop(bool terminateInstantly)
 {
 	std::lock_guard<std::mutex> lock(mtx);
 	stopFlag = true;
+	pauseFlag = false;
 
 	if (terminateInstantly)
 	{

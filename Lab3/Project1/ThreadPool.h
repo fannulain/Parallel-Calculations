@@ -64,7 +64,7 @@ void ThreadPool::addTask(int durationSeconds, Func&& func, Args&&... args)
 
 	int bestQueueIndex = getLeastLoadedQueue();
 	queueLoadTimes[bestQueueIndex]->fetch_add(durationSeconds);
-	queues[bestQueueIndex]->push(task);
+	queues[bestQueueIndex]->push(std::move(task));
 
 	tasksSubmitted.fetch_add(1);
 }
