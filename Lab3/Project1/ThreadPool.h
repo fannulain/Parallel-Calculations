@@ -7,6 +7,7 @@
 #include <atomic>
 #include <climits>
 #include <chrono>
+#include <functional>
 #include "TaskQueue.h"
 #include "TaskStruct.h"
 
@@ -17,6 +18,8 @@ class ThreadPool
 private:
 	std::vector<std::unique_ptr<TaskQueue<Task>>> queues;
 	std::vector<std::thread> workers;
+	std::vector<std::unique_ptr<std::atomic<int>>> queueLoadTimes;
+
 	std::atomic<bool> stopFlag{ false };
 	std::atomic<bool> pauseFlag{ false };
 
@@ -60,6 +63,7 @@ void ThreadPool::addTask(int durationSeconds, Func&& func, Args&&... args)
 	task.func = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
 
 	int bestQueueIndex = getLeastLoadedQueue();
+	queueLoadTimes[bestQueueIndex]->fetch_add(durationSeconds);
 	queues[bestQueueIndex]->push(task);
 
 	tasksSubmitted.fetch_add(1);

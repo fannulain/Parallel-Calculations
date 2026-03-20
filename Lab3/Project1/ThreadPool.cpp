@@ -5,6 +5,7 @@ ThreadPool::ThreadPool(int queuesNum)
 	for (int i = 0; i < queuesNum; i++)
 	{
 		queues.push_back(std::make_unique<TaskQueue<Task>>());
+		queueLoadTimes.push_back(std::make_unique<std::atomic<int>>(0));
 	}
 
 	for (int i = 0; i < queuesNum; i++)
@@ -36,6 +37,8 @@ void ThreadPool::workerLoop(int queueIndex)
 		
 			totalProcessingTimeMs.fetch_add(duration);
 			tasksCompleted.fetch_add(1);
+
+			queueLoadTimes[queueIndex]->fetch_sub(task.durationSeconds);
 		}
 	}
 }
@@ -47,7 +50,7 @@ int ThreadPool::getLeastLoadedQueue() const
 
 	for (int i = 0; i < queues.size(); i++)
 	{
-		int currQueueTime = queues[i]->getTotalTime();
+		int currQueueTime = queueLoadTimes[i]->load();
 		if (currQueueTime < minTime)
 		{
 			minTime = currQueueTime;
@@ -117,10 +120,10 @@ std::vector<int> ThreadPool::getQueueSizes() const
 std::vector<int> ThreadPool::getQueueLoadTimes() const
 {
 	std::vector<int> loadTimes;
-	loadTimes.reserve(queues.size());
-	for (const std::unique_ptr<TaskQueue<Task>>& queue : queues)
+	loadTimes.reserve(queueLoadTimes.size());
+	for (const std::unique_ptr<std::atomic_int>& loadTime : queueLoadTimes)
 	{
-		loadTimes.push_back(queue->getTotalTime());
+		loadTimes.push_back(loadTime->load());
 	}
 	return loadTimes;
 }

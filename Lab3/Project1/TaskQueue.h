@@ -4,7 +4,6 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
-#include <atomic>
 
 //declaration
 
@@ -15,7 +14,6 @@ private:
 	std::queue<TaskType> innerQueue;
 	mutable std::mutex mtx;
 	std::condition_variable condVar;
-	std::atomic<int> totalTime{ 0 };
 
 	bool stopFlag = false;
 	bool pauseFlag = false;
@@ -26,9 +24,13 @@ public:
 
 	bool empty() const;
 	int size() const;
-	int getTotalTime() const;
 
-	void push(const TaskType& task);
+	template<typename TaskArg>
+	void push(TaskArg&& task);
+
+	template <typename... Args>
+	void emplace(Args&&... args);
+
 	bool pop(TaskType& task);
 	void clear();
 
@@ -54,18 +56,23 @@ int TaskQueue<TaskType>::size() const
 }
 
 template<typename TaskType>
-int TaskQueue<TaskType>::getTotalTime() const
-{
-	return totalTime.load();
-}
-
-template<typename TaskType>
-void TaskQueue<TaskType>::push(const TaskType& task)
+template<typename TaskArg>
+void TaskQueue<TaskType>::push(TaskArg&& task)
 {
 	{
 		std::lock_guard<std::mutex> lock(mtx);
-		innerQueue.emplace(task);
-		totalTime.fetch_add(task.durationSeconds);
+		innerQueue.push(std::forward<TaskArg>(task));
+	}
+	condVar.notify_all();
+}
+
+template<typename TaskType>
+template<typename... Args>
+void TaskQueue<TaskType>::emplace(Args&&... args)
+{
+	{
+		std::lock_guard<std::mutex> lock(mtx);
+		innerQueue.emplace(std::forward<Args>(args)...);
 	}
 	condVar.notify_all();
 }
@@ -86,7 +93,6 @@ bool TaskQueue<TaskType>::pop(TaskType& task)
 	{
 		task = innerQueue.front();
 		innerQueue.pop();
-		totalTime.fetch_sub(task.durationSeconds);
 
 		return true;
 	}
@@ -97,11 +103,8 @@ template<typename TaskType>
 void TaskQueue<TaskType>::clear()
 {
 	std::queue<TaskType> emptyQueue;
-	{
-		std::lock_guard<std::mutex> lock(mtx);
-		std::swap(innerQueue, emptyQueue);
-		totalTime.store(0);
-	}
+	std::lock_guard<std::mutex> lock(mtx);
+	std::swap(innerQueue, emptyQueue);
 }
 
 template<typename TaskType>
@@ -114,7 +117,6 @@ void TaskQueue<TaskType>::stop(bool terminateInstantly)
 	{
 		std::queue<TaskType> emptyQueue;
 		std::swap(innerQueue, emptyQueue);
-		totalTime.store(0);
 	}
 
 	condVar.notify_all();
