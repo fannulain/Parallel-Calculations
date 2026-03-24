@@ -26,6 +26,7 @@ private:
 	std::atomic<int> tasksSubmitted{ 0 };
 	std::atomic<int> tasksCompleted{ 0 };
 	std::atomic<long long> totalProcessingTimeMs{ 0 };
+	std::atomic<long long> totalWaitTimeMs{ 0 };
 
 	void workerLoop(int queueIndex);
 	int getLeastLoadedQueue() const;
@@ -49,6 +50,7 @@ public:
 	int getTasksSubmitted() const;
 	int getTasksCompleted() const;
 	double getAverageTaskExecutionTimeMs() const;
+	double getAverageWaitTimePerWorkerMs() const;
 };
 
 //template method implementation

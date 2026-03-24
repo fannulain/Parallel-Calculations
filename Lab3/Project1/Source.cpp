@@ -9,6 +9,12 @@
 #include <iomanip>
 #include "ThreadPool.h"
 
+const std::string COLOR_RESET = "\033[0m";
+const std::string COLOR_GREEN = "\033[32m";
+const std::string COLOR_CYAN = "\033[36m";
+const std::string COLOR_YELLOW = "\033[33m";
+const std::string COLOR_MAGENTA = "\033[35m";
+
 std::mutex consoleMutex;
 
 void safePrint(const std::string& msg) {
@@ -16,12 +22,12 @@ void safePrint(const std::string& msg) {
     std::cout << msg << "\n";
 }
 
-void simulatedTask(int taskId, int durationSeconds) {
-    safePrint("[WORKER] Task " + std::to_string(taskId) + " STARTED. Time: " + std::to_string(durationSeconds) + "s.");
+void simulateTask(int taskId, int durationSeconds) {
+    safePrint(COLOR_GREEN + "[WORKER]" + COLOR_RESET + " Task " + std::to_string(taskId) + " STARTED.Time: " + std::to_string(durationSeconds) + "s.");
 
     std::this_thread::sleep_for(std::chrono::seconds(durationSeconds));
 
-    safePrint("[WORKER] Task " + std::to_string(taskId) + " COMPLETED.");
+    safePrint(COLOR_GREEN + "[WORKER]" + COLOR_RESET + " Task " + std::to_string(taskId) + " COMPLETED.");
 }
 
 void taskGenerator(int generatorId, ThreadPool& pool, std::atomic<int>& globalTaskId, std::atomic<bool>& isTestRunning) {
@@ -34,18 +40,18 @@ void taskGenerator(int generatorId, ThreadPool& pool, std::atomic<int>& globalTa
         int duration = distDuration(gen);
         int taskId = globalTaskId++;
 
-        pool.addTask(duration, simulatedTask, taskId, duration);
+        pool.addTask(duration, simulateTask, taskId, duration);
 
-        safePrint("[GENERATOR " + std::to_string(generatorId) + "] generated a task " + std::to_string(taskId) +
+        safePrint(COLOR_CYAN + "[GENERATOR " + std::to_string(generatorId) + "]" + COLOR_RESET + " generated a task " + std::to_string(taskId) +
             " (Time: " + std::to_string(duration) + "s).");
 
         std::this_thread::sleep_for(std::chrono::seconds(distDelay(gen)));
     }
 }
 
-void runTestingScenario(int testDurationSec, int workerThreads, int generatorThreads) {
-    safePrint("=== STARTING A TEST ===");
-    safePrint("Test duration: " + std::to_string(testDurationSec) + " seconds.");
+void testSolution(int testDurationSec, int workerThreads, int generatorThreads) {
+    safePrint(COLOR_MAGENTA + "=== STARTING A TEST ===" + COLOR_RESET);
+    safePrint(COLOR_MAGENTA + "Test duration: " + std::to_string(testDurationSec) + " seconds." + COLOR_RESET);
 
     ThreadPool pool(workerThreads);
     std::atomic<int> globalTaskId{ 0 };
@@ -66,7 +72,7 @@ void runTestingScenario(int testDurationSec, int workerThreads, int generatorThr
         std::this_thread::sleep_for(std::chrono::seconds(3));
 
         std::vector<int> currentSizes = pool.getQueueSizes();
-        std::string stats = "[PROFILER] Queues size: ";
+        std::string stats = COLOR_YELLOW + "[PROFILER]" + COLOR_RESET + " Queues size: ";
         for (int i = 0; i < currentSizes.size(); i++) {
             stats += "Q" + std::to_string(i + 1) + ":" + std::to_string(currentSizes[i]) + " ";
             cumulativeQueueSizes[i] += currentSizes[i];
@@ -75,18 +81,18 @@ void runTestingScenario(int testDurationSec, int workerThreads, int generatorThr
         sampleCount++;
     }
 
-    safePrint("\n=== ENDING A TEST ===");
+    safePrint(COLOR_MAGENTA + "\n=== ENDING A TEST ===" + COLOR_RESET);
     isTestRunning = false;
+
+    pool.stop(false);
 
     for (auto& gen : generators) {
         if (gen.joinable()) gen.join();
     }
 
-    pool.stop(false);
-
     auto actualTestDurationMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTestTime).count();
 
-    safePrint("\n=== TEST RESULTS ===");
+    safePrint(COLOR_MAGENTA + "\n=== TEST RESULTS ===" + COLOR_RESET);
 
     int totalThreads = workerThreads + generatorThreads + 1;
     safePrint("1. Total number of threads: " + std::to_string(totalThreads));
@@ -105,13 +111,7 @@ void runTestingScenario(int testDurationSec, int workerThreads, int generatorThr
     safePrint("   - Tasks submited: " + std::to_string(pool.getTasksSubmitted()));
     safePrint("   - Tasks completed: " + std::to_string(tasksCompleted));
 
-    double totalUsefulWorkMs = tasksCompleted * avgTaskTimeMs;
-    double totalWorkerLifeTimeMs = static_cast<double>(actualTestDurationMs) * workerThreads;
-
-    double totalWaitTimeMs = totalWorkerLifeTimeMs - totalUsefulWorkMs;
-    if (totalWaitTimeMs < 0) totalWaitTimeMs = 0;
-
-    double avgWaitTimePerWorkerMs = totalWaitTimeMs / workerThreads;
+    double avgWaitTimePerWorkerMs = pool.getAverageWaitTimePerWorkerMs();
     safePrint("5. Average time a thread spends in the waiting state: " +
         std::to_string(avgWaitTimePerWorkerMs / 1000.0) + " s.");
 }
@@ -121,7 +121,7 @@ int main() {
     const int GENERATOR_THREADS = 3;
     const int TEST_DURATION_SEC = 45;
 
-    runTestingScenario(TEST_DURATION_SEC, WORKER_THREADS, GENERATOR_THREADS);
+    testSolution(TEST_DURATION_SEC, WORKER_THREADS, GENERATOR_THREADS);
 
     return 0;
 }

@@ -34,7 +34,7 @@ public:
 	bool pop(TaskType& task);
 	void clear();
 
-	void stop(bool terminateInstantly);
+	std::vector<TaskType> stop(bool terminateInstantly);
 	void pause();
 	void resume();
 };
@@ -110,19 +110,26 @@ void TaskQueue<TaskType>::clear()
 }
 
 template<typename TaskType>
-void TaskQueue<TaskType>::stop(bool terminateInstantly)
+std::vector<TaskType> TaskQueue<TaskType>::stop(bool terminateInstantly)
 {
+	std::vector<TaskType> droppedTasks;
+
 	std::lock_guard<std::mutex> lock(mtx);
 	stopFlag = true;
 	pauseFlag = false;
 
 	if (terminateInstantly)
 	{
-		std::queue<TaskType> emptyQueue;
-		std::swap(innerQueue, emptyQueue);
+		while (!innerQueue.empty())
+		{
+			droppedTasks.push_back(std::move(innerQueue.front()));
+			innerQueue.pop();
+		}
 	}
 
 	condVar.notify_all();
+
+	return droppedTasks;
 }
 
 template<typename TaskType>

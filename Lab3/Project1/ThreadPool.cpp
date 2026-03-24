@@ -24,8 +24,19 @@ void ThreadPool::workerLoop(int queueIndex)
 {
 	Task task;
 
-	while (queues[queueIndex]->pop(task))
+	while (true)
 	{
+		auto waitStart = std::chrono::high_resolution_clock::now();
+
+		bool hasTask = queues[queueIndex]->pop(task);
+
+		auto waitEnd = std::chrono::high_resolution_clock::now();
+		auto waitDuration = std::chrono::duration_cast<std::chrono::milliseconds>(waitEnd - waitStart).count();
+
+		totalWaitTimeMs.fetch_add(waitDuration);
+
+		if (!hasTask) break;
+
 		if (task.func)
 		{
 			auto startTimer = std::chrono::high_resolution_clock::now();
@@ -64,9 +75,14 @@ void ThreadPool::stop(bool finishTasks)
 {
 	if (stopFlag.exchange(true)) return;
 
-	for (std::unique_ptr<TaskQueue<Task>>& queue : queues)
+	for (int i = 0; i < queues.size(); i++)
 	{
-		queue->stop(!finishTasks);
+		auto droppedTasks = queues[i]->stop(!finishTasks);
+
+		for (const auto& task : droppedTasks)
+		{
+			queueLoadTimes[i]->fetch_sub(task.durationSeconds);
+		}
 	}
 
 	for (std::thread& worker : workers)
@@ -80,7 +96,7 @@ void ThreadPool::pause()
 {
 	if (stopFlag.load() || pauseFlag.exchange(true)) return;
 
-	for (std::unique_ptr<TaskQueue<Task>>& queue : queues)
+	for (const auto& queue : queues)
 	{
 		queue->pause();
 	}
@@ -90,7 +106,7 @@ void ThreadPool::resume()
 {
 	if (stopFlag.load() || !pauseFlag.exchange(false)) return;
 
-	for (std::unique_ptr<TaskQueue<Task>>& queue : queues)
+	for (const auto& queue : queues)
 	{
 		queue->resume();
 	}
@@ -110,7 +126,7 @@ std::vector<int> ThreadPool::getQueueSizes() const
 {
 	std::vector<int> sizes;
 	sizes.reserve(queues.size());
-	for (const std::unique_ptr<TaskQueue<Task>>& queue : queues)
+	for (const auto& queue : queues)
 	{
 		sizes.push_back(queue->size());
 	}
@@ -121,7 +137,7 @@ std::vector<int> ThreadPool::getQueueLoadTimes() const
 {
 	std::vector<int> loadTimes;
 	loadTimes.reserve(queueLoadTimes.size());
-	for (const std::unique_ptr<std::atomic_int>& loadTime : queueLoadTimes)
+	for (const auto& loadTime : queueLoadTimes)
 	{
 		loadTimes.push_back(loadTime->load());
 	}
@@ -144,4 +160,10 @@ double ThreadPool::getAverageTaskExecutionTimeMs() const
 	if (completed == 0) return 0.0;
 
 	return static_cast<double>(totalProcessingTimeMs.load()) / completed;
+}
+
+double ThreadPool::getAverageWaitTimePerWorkerMs() const
+{
+	if (workers.empty()) return 0.0;
+	return static_cast<double>(totalWaitTimeMs.load()) / workers.size();
 }
