@@ -64,7 +64,7 @@ void TaskQueue<TaskType>::push(TaskArg&& task)
 		if (stopFlag) return;
 		innerQueue.push(std::forward<TaskArg>(task));
 	}
-	condVar.notify_all();
+	condVar.notify_one();
 }
 
 template<typename TaskType>
@@ -76,7 +76,7 @@ void TaskQueue<TaskType>::emplace(Args&&... args)
 		if (stopFlag) return;
 		innerQueue.emplace(std::forward<Args>(args)...);
 	}
-	condVar.notify_all();
+	condVar.notify_one();
 }
 
 template<typename TaskType>

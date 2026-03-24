@@ -119,7 +119,7 @@ void testSolution(int testDurationSec, int workerThreads, int generatorThreads) 
 int main() {
     const int WORKER_THREADS = 6;
     const int GENERATOR_THREADS = 3;
-    const int TEST_DURATION_SEC = 45;
+    const int TEST_DURATION_SEC = 30;
 
     testSolution(TEST_DURATION_SEC, WORKER_THREADS, GENERATOR_THREADS);
 
