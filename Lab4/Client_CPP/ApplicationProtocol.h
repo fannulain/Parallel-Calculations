@@ -9,9 +9,9 @@ constexpr uint8_t CMD_CHECK_STATUS = 0x03;
 constexpr uint8_t CMD_GET_RESULT = 0x04;
 constexpr uint8_t CMD_END_SESSION = 0xFF;
 
-constexpr uint8_t STATUS_PROCESSING = 0x11;
-constexpr uint8_t STATUS_DONE = 0x12;
-constexpr uint8_t STATUS_ERROR = 0x13;
+constexpr uint8_t STATUS_PROCESSING = 0x0A;
+constexpr uint8_t STATUS_DONE = 0x0B;
+constexpr uint8_t STATUS_ERROR = 0x0C;
 
 #pragma pack(push, 1)
 struct MessageHeader
