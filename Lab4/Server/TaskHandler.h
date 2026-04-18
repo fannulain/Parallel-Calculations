@@ -15,6 +15,10 @@ private:
 
 public:
 	TaskHandler(int threadsNum, int size, std::vector<std::vector<int>>& matrix);
+    
+	TaskHandler(const TaskHandler&) = delete;
+	TaskHandler& operator=(const TaskHandler&) = delete;
+    
 	void calculate();
 };
 

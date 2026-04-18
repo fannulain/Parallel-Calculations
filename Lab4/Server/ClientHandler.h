@@ -7,7 +7,7 @@
 #include "ApplicationProtocol.h"
 #include "TaskHandler.h"
 
-class ClientSession {
+class ClientSession : public std::enable_shared_from_this<ClientSession> {
 private:
     SOCKET clientSocket;
 
@@ -38,4 +38,5 @@ public:
     ClientSession& operator=(const ClientSession&) = delete;
 
     void handle();
+    void disconnect();
 };

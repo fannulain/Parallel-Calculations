@@ -1,6 +1,7 @@
 #include "Server.h"
 #include <iostream>
 #include <stdexcept>
+#include <algorithm>
 
 Server::Server(uint16_t port) : port(port), serverSocket(INVALID_SOCKET), isRunning(false)
 {
@@ -67,19 +68,36 @@ void Server::acceptLoop()
 
         char clientIp[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &(clientAddr.sin_addr), clientIp, INET_ADDRSTRLEN);
-        std::cout << "New client connected: " << clientIp << ":" << ntohs(clientAddr.sin_port) << "\n";
+        std::cout << "[Server] New client connected: " << clientIp << ":" << ntohs(clientAddr.sin_port) << " | Client ID: " << (int)clientSocket << "\n";
 
-        std::thread clientThread([clientSocket]() {
+        auto session = std::make_shared<ClientSession>(clientSocket);
+        
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            clients.push_back(session);
+        }
+
+        std::thread clientThread([this, session]() {
             try {
-                ClientSession session(clientSocket);
-                session.handle();
+                session->handle();
             }
             catch (const std::exception& e) {
                 std::cerr << "Exception in ClientSession: " << e.what() << "\n";
             }
+
+            removeClient(session);
         });
 
         clientThread.detach(); 
+    }
+}
+
+void Server::removeClient(std::shared_ptr<ClientSession> client)
+{
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    auto thisClient = std::find(clients.begin(), clients.end(), client);
+    if (thisClient != clients.end()) {
+        clients.erase(thisClient);
     }
 }
 
@@ -90,4 +108,10 @@ void Server::stop()
         closesocket(serverSocket);
         serverSocket = INVALID_SOCKET;
     }
+
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    for (auto& client : clients) {
+        client->disconnect();
+    }
+    clients.clear();
 }

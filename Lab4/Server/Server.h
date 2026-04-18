@@ -6,6 +6,9 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <vector>
+#include <mutex>
+#include <memory>
 #include "ClientHandler.h"
 
 #pragma comment(lib, "Ws2_32.lib")
@@ -17,11 +20,18 @@ private:
     SOCKET serverSocket;
     std::atomic<bool> isRunning;
 
+    std::mutex clientsMutex;
+    std::vector<std::shared_ptr<ClientSession>> clients;
+    
     void acceptLoop();
+    void removeClient(std::shared_ptr<ClientSession> client);
 
 public:
     Server(uint16_t port);
     ~Server();
+
+    Server(const Server&) = delete;
+    Server& operator=(const Server&) = delete;
 
     void start();
     void stop();

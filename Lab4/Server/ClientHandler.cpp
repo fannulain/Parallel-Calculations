@@ -8,8 +8,14 @@ ClientSession::ClientSession(SOCKET socket)
 {}
 
 ClientSession::~ClientSession() {
+    disconnect();
+}
+
+void ClientSession::disconnect() {
+    std::lock_guard<std::mutex> lock(sessionMutex);
     if (clientSocket != INVALID_SOCKET) {
         closesocket(clientSocket);
+        clientSocket = INVALID_SOCKET;
     }
 }
 
@@ -66,6 +72,7 @@ void ClientSession::processConfig(const char* message, uint32_t messageLength) {
     }
 
     currentStatus = STATUS_DONE;
+    std::cout << "[Client " << (int)clientSocket << "] Received configuration: threads=" << threadsNum << ", matrixSize=" << matrixSize << "\n";
 }
 
 void ClientSession::processStart(const char* message, uint32_t messageLength) {
@@ -74,43 +81,49 @@ void ClientSession::processStart(const char* message, uint32_t messageLength) {
     if (matrixSize == 0) return;
 
     currentStatus = STATUS_PROCESSING;
+    std::cout << "[Client " << (int)clientSocket << "] Started processing task...\n";
     
     taskHandler = std::make_unique<TaskHandler>(threadsNum, matrixSize, matrix);
     
-    std::thread([this]() {
+    auto thisClient = shared_from_this();
+    std::thread([this, thisClient]() {
         try {
             taskHandler->calculate();
             std::lock_guard<std::mutex> lock2(sessionMutex);
             currentStatus = STATUS_DONE;
+            std::cout << "[Client " << (int)clientSocket << "] Task processing finished.\n";
         } catch (...) {
             std::lock_guard<std::mutex> lock2(sessionMutex);
             currentStatus = STATUS_ERROR;
+            std::cout << "[Client " << (int)clientSocket << "] Task processing failed (ERROR).\n";
         }
     }).detach();
 }
 
 void ClientSession::processStatus() {
     std::lock_guard<std::mutex> lock(sessionMutex);
+    std::cout << "[Client " << (int)clientSocket << "] Requested status. Current status code: " << (int)currentStatus << "\n";
     sendMessage(CMD_CHECK_STATUS, (const char*)&currentStatus, sizeof(currentStatus));
 }
 
 void ClientSession::processResult() {
     std::lock_guard<std::mutex> lock(sessionMutex);
+    std::cout << "[Client " << (int)clientSocket << "] Requested result.\n";
     
     if (currentStatus != STATUS_DONE) {
         sendMessage(CMD_GET_RESULT, nullptr, 0);
         return;
     }
 
-    std::vector<int> flatMatrix;
-    flatMatrix.reserve(matrixSize * matrixSize);
+    std::vector<int> vectorizedMatrix;
+    vectorizedMatrix.reserve(matrixSize * matrixSize);
     for (uint32_t i = 0; i < matrixSize; i++) {
         for (uint32_t j = 0; j < matrixSize; j++) {
-            flatMatrix.push_back(htonl(matrix[i][j]));
+            vectorizedMatrix.push_back(htonl(matrix[i][j]));
         }
     }
 
-    sendMessage(CMD_GET_RESULT, (const char*)flatMatrix.data(), flatMatrix.size() * sizeof(int));
+    sendMessage(CMD_GET_RESULT, (const char*)vectorizedMatrix.data(), vectorizedMatrix.size() * sizeof(int));
 }
 
 void ClientSession::handle() {
@@ -131,7 +144,8 @@ void ClientSession::handle() {
         }
 
         if (header.commandId == CMD_END_SESSION) {
-            break;
+            std::cout << "[Client " << (int)clientSocket << "] Ended session.\n";
+            return;
         }
 
         switch (header.commandId) {
@@ -151,4 +165,6 @@ void ClientSession::handle() {
                 break;
         }
     }
+
+    std::cout << "[Client " << (int)clientSocket << "] Disconnected unexpectedly.\n";
 }

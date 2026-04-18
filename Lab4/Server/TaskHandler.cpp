@@ -12,7 +12,7 @@ void TaskHandler::calculateRow(int rowNum)
 		if (matrix[rowNum][i] >= 10)
 			sum += matrix[rowNum][i];
 	}
-	matrix[rowNum][rowNum] = sum - matrix[rowNum][rowNum];
+	matrix[rowNum][rowNum] = sum == 0 ? sum : sum - matrix[rowNum][rowNum];
 }
 
 void TaskHandler::calculate()
