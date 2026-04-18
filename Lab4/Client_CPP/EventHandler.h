@@ -4,7 +4,8 @@
 #include "Client.h"
 #include <vector>
 
-class EventHandler {
+class EventHandler 
+{
 private:
     Client& client;
     uint32_t currentMatrixSize;

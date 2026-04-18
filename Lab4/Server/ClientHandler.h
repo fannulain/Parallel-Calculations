@@ -7,7 +7,8 @@
 #include "ApplicationProtocol.h"
 #include "TaskHandler.h"
 
-class ClientSession : public std::enable_shared_from_this<ClientSession> {
+class ClientSession : public std::enable_shared_from_this<ClientSession> 
+{
 private:
     SOCKET clientSocket;
 

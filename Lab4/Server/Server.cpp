@@ -7,8 +7,9 @@ Server::Server(uint16_t port) : port(port), serverSocket(INVALID_SOCKET), isRunn
 {
     WSADATA wsaData;
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (result != 0) {
-        throw std::runtime_error("WSAStartup failed with error: " + std::to_string(result));
+    if (result != 0) 
+    {
+        throw std::runtime_error("[Server] WSAStartup failed with error: " + std::to_string(result));
     }
 }
 
@@ -21,8 +22,9 @@ Server::~Server()
 void Server::start()
 {
     serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (serverSocket == INVALID_SOCKET) {
-        throw std::runtime_error("Socket creation failed with error: " + std::to_string(WSAGetLastError()));
+    if (serverSocket == INVALID_SOCKET) 
+    {
+        throw std::runtime_error("[Server] Socket creation failed with error: " + std::to_string(WSAGetLastError()));
     }
 
     sockaddr_in serverAddr = {};
@@ -31,37 +33,42 @@ void Server::start()
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     serverAddr.sin_port = htons(port);
 
-    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) 
+    {
         int err = WSAGetLastError();
         closesocket(serverSocket);
         serverSocket = INVALID_SOCKET;
-        throw std::runtime_error("Bind failed with error: " + std::to_string(err));
+        throw std::runtime_error("[Server] Bind failed with error: " + std::to_string(err));
     }
 
-    if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
+    if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) 
+    {
         int err = WSAGetLastError();
         closesocket(serverSocket);
         serverSocket = INVALID_SOCKET;
-        throw std::runtime_error("Listen failed with error: " + std::to_string(err));
+        throw std::runtime_error("[Server] Listen failed with error: " + std::to_string(err));
     }
 
     isRunning = true;
-    std::cout << "Server started. Listening on port " << port << "...\n";
+    std::cout << "[Server] Server started. Listening on port " << port << "...\n";
 
     acceptLoop();
 }
 
 void Server::acceptLoop()
 {
-    while (isRunning) {
+    while (isRunning) 
+    {
         sockaddr_in clientAddr;
         int clientAddrSize = sizeof(clientAddr);
 
         SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
 
-        if (clientSocket == INVALID_SOCKET) {
-            if (isRunning) {
-                std::cerr << "Accept failed with error: " << WSAGetLastError() << "\n";
+        if (clientSocket == INVALID_SOCKET) 
+        {
+            if (isRunning) 
+            {
+                std::cerr << "[Server] Accept failed with error: " << WSAGetLastError() << "\n";
             }
             continue;
         }
@@ -77,12 +84,15 @@ void Server::acceptLoop()
             clients.push_back(session);
         }
 
-        std::thread clientThread([this, session]() {
-            try {
+        std::thread clientThread([this, session]() 
+        {
+            try 
+            {
                 session->handle();
             }
-            catch (const std::exception& e) {
-                std::cerr << "Exception in ClientSession: " << e.what() << "\n";
+            catch (const std::exception& e) 
+            {
+                std::cerr << "[Server] Exception in ClientSession: " << e.what() << "\n";
             }
 
             removeClient(session);
@@ -96,7 +106,8 @@ void Server::removeClient(std::shared_ptr<ClientSession> client)
 {
     std::lock_guard<std::mutex> lock(clientsMutex);
     auto thisClient = std::find(clients.begin(), clients.end(), client);
-    if (thisClient != clients.end()) {
+    if (thisClient != clients.end()) 
+    {
         clients.erase(thisClient);
     }
 }
@@ -104,13 +115,15 @@ void Server::removeClient(std::shared_ptr<ClientSession> client)
 void Server::stop()
 {
     isRunning = false;
-    if (serverSocket != INVALID_SOCKET) {
+    if (serverSocket != INVALID_SOCKET) 
+    {
         closesocket(serverSocket);
         serverSocket = INVALID_SOCKET;
     }
 
     std::lock_guard<std::mutex> lock(clientsMutex);
-    for (auto& client : clients) {
+    for (auto& client : clients) 
+    {
         client->disconnect();
     }
     clients.clear();

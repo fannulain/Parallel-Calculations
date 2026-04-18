@@ -35,7 +35,8 @@ void TaskHandler::calculate()
 			});
 	}
 
-	for (std::thread& thread : threads) {
+	for (std::thread& thread : threads) 
+	{
 		if (thread.joinable()) thread.join();
 	}
 }

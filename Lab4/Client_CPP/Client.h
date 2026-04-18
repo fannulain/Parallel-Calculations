@@ -29,7 +29,7 @@ public:
 
     void connectToServer();
     void disconnect();
-    void gracefulDisconnect();
+    void safeDisconnect();
 
     void processConfig(uint32_t threadsNum, uint32_t matrixSize, const std::vector<std::vector<int>>& matrix);
     void processStart();
