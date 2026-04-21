@@ -2,6 +2,7 @@
 #include <iostream>
 #include <thread>
 #include <stdexcept>
+#include <chrono>
 
 ClientSession::ClientSession(SOCKET socket) 
     : clientSocket(socket), currentStatus(STATUS_DONE), threadsNum(0), matrixSize(0)
@@ -104,10 +105,14 @@ void ClientSession::processStart(const char* message, uint32_t messageLength)
     {
         try 
         {
+            auto start_time = std::chrono::high_resolution_clock::now();
             taskHandler->calculate();
+            auto end_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = end_time - start_time;
+            
             std::lock_guard<std::mutex> lock2(sessionMutex);
             currentStatus = STATUS_DONE;
-            std::cout << "[Client " << (int)clientSocket << "] Task processing finished.\n";
+            std::cout << "[Client " << (int)clientSocket << "] Task processing finished (" << diff.count() << " s.).\n";
         } 
         catch (...) 
         {

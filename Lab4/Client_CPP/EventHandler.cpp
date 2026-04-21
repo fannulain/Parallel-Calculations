@@ -130,6 +130,8 @@ void EventHandler::handleStart()
     }
     
     client.processStart();
+    taskStartTime = std::chrono::high_resolution_clock::now();
+    hasTaskStarted = true;
     std::cout << "[OK] Start processing command sent!\n";
 }
 
@@ -185,7 +187,18 @@ void EventHandler::handleResult()
     } 
     else 
     {
-        std::cout << "\n[SUCCESS] Result matrix " << res.size() << "x" << res.size() << " successfully received!\n";
+        if (hasTaskStarted) 
+        {
+            auto taskEndTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = taskEndTime - taskStartTime;
+            std::cout << "\n[SUCCESS] Result matrix " << res.size() << "x" << res.size() << " successfully received!\n";
+            std::cout << "Total task execution time (Start -> GetResult): " << diff.count() << " s.\n";
+            hasTaskStarted = false;
+        } 
+        else 
+        {
+            std::cout << "\n[SUCCESS] Result matrix " << res.size() << "x" << res.size() << " successfully received!\n";
+        }
 
         int limit = 5;
         std::cout << "Preview of the received matrix (fragment " << limit << "x" << limit << "):\n";
