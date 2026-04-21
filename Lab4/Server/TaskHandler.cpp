@@ -9,10 +9,10 @@ void TaskHandler::calculateRow(int rowNum)
 	int sum = 0;
 	for (int i = 0; i < matrix[rowNum].size(); i++)
 	{
-		if (matrix[rowNum][i] >= 10)
+		if (i != rowNum && matrix[rowNum][i] >= 10)
 			sum += matrix[rowNum][i];
 	}
-	matrix[rowNum][rowNum] = sum == 0 ? sum : sum - matrix[rowNum][rowNum];
+	matrix[rowNum][rowNum] = sum;
 }
 
 void TaskHandler::calculate()
