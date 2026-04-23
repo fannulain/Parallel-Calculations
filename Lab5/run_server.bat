@@ -1,0 +1,9 @@
+@echo off
+echo Starting Web Server...
+start "" "build\Release\WebServerApp.exe"
+
+echo Waiting for server to initialize...
+timeout /t 2 > nul
+
+echo Opening app in browser...
+start http://localhost:8080
