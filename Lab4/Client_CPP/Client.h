@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <cstdint>
 
 #pragma comment(lib, "Ws2_32.lib")
 
