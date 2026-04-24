@@ -1,4 +1,5 @@
 #include <iostream>
+#define FD_SETSIZE 2048
 #include <winsock2.h>
 #include "Server.h"
 
@@ -16,7 +17,7 @@ int main()
     catch (const std::exception& e) 
     {
         std::cerr << "Server error: " << e.what() << std::endl;
-        return 1;
+        return -1;
     }
 
     return 0;

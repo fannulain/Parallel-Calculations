@@ -8,9 +8,10 @@ add_executable(${PROJECT_NAME}
     Source.cpp
     Server/Server.cpp
     Server/ClientSession.cpp
+    ThreadPool/ThreadPool.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE Server)
+target_include_directories(${PROJECT_NAME} PRIVATE Server ThreadPool)
 
 target_link_libraries(${PROJECT_NAME} ws2_32)
 

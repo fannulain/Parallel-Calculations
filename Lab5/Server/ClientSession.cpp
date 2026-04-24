@@ -3,9 +3,22 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
-ClientSession::ClientSession(SOCKET clientSocket) : socket(clientSocket) 
-{}
+ClientSession::ClientSession(SOCKET clientSocket, ThreadPool& pool) :
+    socket(clientSocket),
+    state(State::READING),
+    bytesSent(0),
+    keepAlive(false),
+    threadPool(pool)
+{
+    unsigned long mode = 1;
+    if (ioctlsocket(socket, FIONBIO, &mode) != 0) 
+    {
+        std::cerr << "ioctlsocket failed: " << WSAGetLastError() << std::endl;
+    }
+    updateActivity();
+}
 
 ClientSession::~ClientSession() 
 {
@@ -16,7 +29,28 @@ ClientSession::~ClientSession()
     }
 }
 
-void ClientSession::process() 
+void ClientSession::updateActivity()
+{
+    lastActivity = std::chrono::steady_clock::now();
+}
+
+bool ClientSession::isTimedOut(int timeoutSeconds) const
+{
+    auto now = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - lastActivity).count();
+    return duration > timeoutSeconds;
+}
+
+void ClientSession::reset()
+{
+    requestBuffer.clear();
+    responseBuffer.clear();
+    bytesSent = 0;
+    state = State::READING;
+    updateActivity();
+}
+
+void ClientSession::readData() 
 {
     const int bufferSize = 4096;
     char buffer[bufferSize];
@@ -25,29 +59,63 @@ void ClientSession::process()
     if (bytesReceived > 0) 
     {
         buffer[bytesReceived] = '\0';
-        std::string request(buffer);
+        requestBuffer.append(buffer, bytesReceived);
+        updateActivity();
 
-        std::istringstream stream(request);
-        std::string method, path, version;
-        stream >> method >> path >> version;
-
-        if (method == "GET") 
+        if (requestBuffer.find("\r\n\r\n") != std::string::npos) 
         {
-            handleGetRequest(path);
-        } 
-        else 
-        {
-            sendResponse(405, "Method Not Allowed", "text/plain", "Method Not Allowed");
+            state.store(State::PROCESSING);
+            threadPool.addTask([this]() {
+                processRequest();
+            });
         }
     } 
     else if (bytesReceived == 0) 
     {
-        std::cout << "Client disconnected connection during recv." << std::endl;
+        state = State::FINISHED;
     } 
     else 
     {
-        std::cerr << "recv failed: " << WSAGetLastError() << std::endl;
+        int error = WSAGetLastError();
+        if (error != WSAEWOULDBLOCK) 
+        {
+            state = State::FINISHED;
+        }
     }
+}
+
+void ClientSession::processRequest()
+{
+    std::istringstream stream(requestBuffer);
+    std::string method, path, version;
+    stream >> method >> path >> version;
+
+    std::string lowerBuffer = requestBuffer;
+    std::transform(lowerBuffer.begin(), lowerBuffer.end(), lowerBuffer.begin(), ::tolower);
+
+    if (version == "HTTP/1.1" && lowerBuffer.find("connection: close") == std::string::npos) 
+    {
+        keepAlive = true;
+    }
+    else if (lowerBuffer.find("connection: keep-alive") != std::string::npos)
+    {
+        keepAlive = true;
+    }
+    else 
+    {
+        keepAlive = false;
+    }
+
+    if (method == "GET") 
+    {
+        handleGetRequest(path);
+    } 
+    else 
+    {
+        sendResponse(405, "Method Not Allowed", "text/plain", "Method Not Allowed");
+    }
+    
+    state = State::SENDING;
 }
 
 void ClientSession::handleGetRequest(const std::string& path) 
@@ -105,22 +173,52 @@ void ClientSession::sendResponse(int statusCode, const std::string& statusMessag
     responseStream << "HTTP/1.1 " << statusCode << " " << statusMessage << "\r\n";
     responseStream << "Content-Type: " << contentType << "\r\n";
     responseStream << "Content-Length: " << body.length() << "\r\n";
-    responseStream << "Connection: close\r\n";
+    
+    if (keepAlive) 
+    {
+        responseStream << "Connection: keep-alive\r\n";
+    } 
+    else 
+    {
+        responseStream << "Connection: close\r\n";
+    }
+    
     responseStream << "\r\n";
     responseStream << body;
 
-    std::string responseString = responseStream.str();
-    int totalSent = 0;
-    int dataSize = responseString.length();
+    responseBuffer = responseStream.str();
+    bytesSent = 0;
+}
 
-    while (totalSent < dataSize) 
+void ClientSession::writeData() 
+{
+    if (bytesSent < responseBuffer.length()) 
     {
-        int bytesSent = send(socket, responseString.c_str() + totalSent, dataSize - totalSent, 0);
-        if (bytesSent == SOCKET_ERROR) 
+        int sent = send(socket, responseBuffer.c_str() + bytesSent, static_cast<int>(responseBuffer.length() - bytesSent), 0);
+        if (sent > 0) 
         {
-            std::cerr << "send failed: " << WSAGetLastError() << std::endl;
-            break;
+            bytesSent += sent;
+            updateActivity();
+        } 
+        else if (sent == SOCKET_ERROR) 
+        {
+            int error = WSAGetLastError();
+            if (error != WSAEWOULDBLOCK) 
+            {
+                state = State::FINISHED;
+            }
         }
-        totalSent += bytesSent;
+    }
+    
+    if (bytesSent >= responseBuffer.length()) 
+    {
+        if (keepAlive) 
+        {
+            reset();
+        } 
+        else 
+        {
+            state = State::FINISHED;
+        }
     }
 }

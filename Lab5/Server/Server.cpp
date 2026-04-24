@@ -2,7 +2,10 @@
 #include "ClientSession.h"
 #include <iostream>
 
-Server::Server(int port) : port(port), listenSocket(INVALID_SOCKET), isRunning(false) 
+Server::Server(int port) :
+    port(port),
+    listenSocket(INVALID_SOCKET),
+    isRunning(false)
 {
     WSADATA wsaData;
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -37,6 +40,14 @@ void Server::start()
         return;
     }
 
+    unsigned long mode = 1;
+    if (ioctlsocket(listenSocket, FIONBIO, &mode) != 0) 
+    {
+        std::cerr << "ioctlsocket failed: " << WSAGetLastError() << std::endl;
+        stop();
+        return;
+    }
+
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
@@ -66,23 +77,84 @@ void Server::acceptConnections()
 {
     while (isRunning) 
     {
-        SOCKET clientSocket = accept(listenSocket, NULL, NULL);
-        if (clientSocket == INVALID_SOCKET) 
+        fd_set readfds;
+        fd_set writefds;
+        FD_ZERO(&readfds);
+        FD_ZERO(&writefds);
+
+        FD_SET(listenSocket, &readfds);
+
+        SOCKET maxSocket = listenSocket;
+
+        for (auto& session : activeSessions) 
         {
-            if (isRunning) 
+            SOCKET socket = session->getSocket();
+            if (session->getState() == ClientSession::State::READING) 
             {
-                std::cerr << "accept() failed with error: " << WSAGetLastError() << std::endl;
+                FD_SET(socket, &readfds);
+            } 
+            else if (session->getState() == ClientSession::State::SENDING) 
+            {
+                FD_SET(socket, &writefds);
             }
+
+            if (socket > maxSocket) 
+            {
+                maxSocket = socket;
+            }
+        }
+
+        timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 10000; // 10ms
+
+        int activity = select(static_cast<int>(maxSocket + 1), &readfds, &writefds, NULL, &timeout);
+
+        if (activity == SOCKET_ERROR) 
+        {
+            if (isRunning) std::cerr << "select() failed: " << WSAGetLastError() << std::endl;
             break;
         }
 
-        std::cout << "Client connected." << std::endl;
+        if (FD_ISSET(listenSocket, &readfds)) 
+        {
+            SOCKET clientSocket = accept(listenSocket, NULL, NULL);
+            if (clientSocket != INVALID_SOCKET) 
+            {
+                std::cout << "Client connected." << std::endl;
+                activeSessions.push_back(std::make_unique<ClientSession>(clientSocket, threadPool));
+            }
+        }
 
-        std::thread clientThread([](SOCKET socket) {
-            ClientSession session(socket);
-            session.process();
-        }, clientSocket);
+        for (auto currSession = activeSessions.begin(); currSession != activeSessions.end();) 
+        {
+            SOCKET socket = (*currSession)->getSocket();
 
-        clientThread.detach();
+            if ((*currSession)->getState() == ClientSession::State::READING && FD_ISSET(socket, &readfds)) 
+            {
+                (*currSession)->readData();
+            }
+
+            if ((*currSession)->getState() == ClientSession::State::SENDING && FD_ISSET(socket, &writefds)) 
+            {
+                (*currSession)->writeData();
+            }
+
+            if ((*currSession)->getState() != ClientSession::State::FINISHED 
+                && (*currSession)->getState() != ClientSession::State::PROCESSING 
+                && (*currSession)->isTimedOut(10)) 
+            {
+                (*currSession)->finish();
+            }
+
+            if ((*currSession)->getState() == ClientSession::State::FINISHED) 
+            {
+                currSession = activeSessions.erase(currSession);
+            } 
+            else 
+            {
+                currSession++;
+            }
+        }
     }
 }
